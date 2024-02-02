@@ -2,6 +2,8 @@
 #define _LIBSTAPSDT_H
 #define MAX_ARGUMENTS 6
 
+#include <stdint.h>
+
 typedef enum {
   noError                 = -1,
   elfCreationError        = 0,
@@ -30,12 +32,19 @@ typedef enum {
 
 struct SDTProvider;
 
+struct SDTProbe;
+
+typedef struct SDTProbe SDTProbe_t;
+
 typedef struct SDTProbe {
   char *name;
   ArgType_t argFmt[MAX_ARGUMENTS];
   void *_fire;
   struct SDTProvider *provider;
   int argCount;
+  unsigned int urdtHash;
+  unsigned short *urdtSemaphore;
+  void (*urdtFire)(SDTProbe_t *probe, uint64_t *args);
 } SDTProbe_t;
 
 typedef struct SDTProbeList_ {

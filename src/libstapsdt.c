@@ -15,6 +15,7 @@
 #include "section.h"
 #include "string-table.h"
 #include "shared-lib.h"
+#include "urdt.h"
 #include "util.h"
 #include "libstapsdt.h"
 #include "errors.h"
@@ -110,6 +111,8 @@ SDTProbe_t *providerAddProbe(SDTProvider_t *provider, const char *name, int argC
   }
 
   probeList->probe.provider = provider;
+
+  urdtProbeInit(&probeList->probe);
 
   return &(probeList->probe);
 }
@@ -217,15 +220,18 @@ int providerUnload(SDTProvider_t *provider) {
 }
 
 void probeFire(SDTProbe_t *probe, ...) {
-  if(probe->_fire == NULL) {
-    return;
-  }
   va_list vl;
   va_start(vl, probe);
   uint64_t arg[6] = {0};
   for(int i=0; i < probe->argCount; i++) {
     arg[i] = va_arg(vl, uint64_t);
   }
+  if(!probeIsEnabled(probe))
+    return;
+
+  urdtProbeFire(probe, arg);
+  if (!probe->_fire)
+    return;
 
   switch(probe->argCount) {
     case 0:
@@ -256,13 +262,15 @@ void probeFire(SDTProbe_t *probe, ...) {
 }
 
 int probeIsEnabled(SDTProbe_t *probe) {
-  if(probe->_fire == NULL) {
-    return 0;
+  if (probe->_fire != NULL) {
+    if (((*(char *)probe->_fire) & 0x90) != 0x90)
+      return 1;
   }
-  if(((*(char *)probe->_fire) & 0x90) == 0x90) {
-    return 0;
+  if (probe->urdtSemaphore) {
+     if (*(probe->urdtSemaphore) > 0)
+       return 1;
   }
-  return 1;
+  return 0;
 }
 
 void providerDestroy(SDTProvider_t *provider) {
